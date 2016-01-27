@@ -47,6 +47,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.SurfaceTexture;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
@@ -55,8 +56,10 @@ import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.MotionEvent;
+import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.TextureView;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.View.OnKeyListener;
@@ -81,7 +84,7 @@ import java.util.Map;
  */
 public class PlayerActivity extends Activity implements SurfaceHolder.Callback, OnClickListener,
     DemoPlayer.Listener, DemoPlayer.CaptionListener, DemoPlayer.Id3MetadataListener,
-    AudioCapabilitiesReceiver.Listener {
+    AudioCapabilitiesReceiver.Listener, TextureView.SurfaceTextureListener {
 
   // For use within demo app code.
   public static final String CONTENT_ID_EXTRA = "content_id";
@@ -106,7 +109,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
   private View debugRootView;
   private View shutterView;
   private AspectRatioFrameLayout videoFrame;
-  private SurfaceView surfaceView;
+  private TextureView surfaceView;
   private TextView debugTextView;
   private TextView playerStateTextView;
   private SubtitleLayout subtitleLayout;
@@ -152,7 +155,7 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
       @Override
       public boolean onKey(View v, int keyCode, KeyEvent event) {
         if (keyCode == KeyEvent.KEYCODE_BACK || keyCode == KeyEvent.KEYCODE_ESCAPE
-            || keyCode == KeyEvent.KEYCODE_MENU) {
+                || keyCode == KeyEvent.KEYCODE_MENU) {
           return false;
         }
         return mediaController.dispatchKeyEvent(event);
@@ -163,8 +166,8 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     debugRootView = findViewById(R.id.controls_root);
 
     videoFrame = (AspectRatioFrameLayout) findViewById(R.id.video_frame);
-    surfaceView = (SurfaceView) findViewById(R.id.surface_view);
-    surfaceView.getHolder().addCallback(this);
+    surfaceView = (TextureView) findViewById(R.id.surface_view);
+    surfaceView.setSurfaceTextureListener(this);
     debugTextView = (TextView) findViewById(R.id.debug_text_view);
 
     playerStateTextView = (TextView) findViewById(R.id.player_state_view);
@@ -337,7 +340,10 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
       playerNeedsPrepare = false;
       updateButtonVisibilities();
     }
-    player.setSurface(surfaceView.getHolder().getSurface());
+      SurfaceTexture surfaceTexture = surfaceView.getSurfaceTexture();
+    if (surfaceTexture != null) {
+      player.setSurface(new Surface(surfaceTexture));
+    }
     player.setPlayWhenReady(playWhenReady);
   }
 
@@ -687,6 +693,31 @@ public class PlayerActivity extends Activity implements SurfaceHolder.Callback, 
     String lastPathSegment = !TextUtils.isEmpty(fileExtension) ? "." + fileExtension
         : uri.getLastPathSegment();
     return Util.inferContentType(lastPathSegment);
+  }
+
+  @Override
+  public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+    if (player != null) {
+      player.setSurface(new Surface(surface));
+    }
+  }
+
+  @Override
+  public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+
+  }
+
+  @Override
+  public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+    if (player != null) {
+      player.blockingClearSurface();
+    }
+    return true;
+  }
+
+  @Override
+  public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+
   }
 
   private static final class KeyCompatibleMediaController extends MediaController {
